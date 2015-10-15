@@ -1,0 +1,65 @@
+start = {statement}+ $ ;
+statement = meta | instruction | label;
+
+meta = orig | word | name ;
+orig = '.orig' @:num ;
+word = '.word' word:imm ;
+name = '.name' @+:str '=' @+:num ;
+
+instruction = alu | load | store | cmp | jal | pseudo;
+
+label = !reserved label:str ':' ;
+
+reserved = alui_func | alu_func | branchz_func | branch_func 
+        | cmpi_func | cmpr_func | /mvhi|[ls]w|jal|br|not|b[lg]e|call|jmp|ret/;
+
+alu =  alui | alur;
+alui = (func:alui_func fmt:fmt1) 
+    | (func:'mvhi' fmt:fmt2) ;
+alur = func:alu_func fmt:fmt0 ;
+
+alui_func = @:alu_func /(?<!\s)i/ ;
+alu_func = /add|sub|n?and|x?n?or/;
+
+load = func:'lw' fmt:fmt3 ;
+store = func:'sw' fmt:fmt4 ;
+
+cmp = cmpi | cmpr | branchz | branch;
+cmpi = func:cmpi_func fmt:fmt1 ;
+cmpr =  func:cmpr_func fmt:fmt0 ;
+branchz = func:branchz_func fmt:fmt6 ;
+branch = func:branch_func fmt:fmt5 ;
+
+branchz_func = /b(?!\s)/ @:cmp_func0 /(?<!\s)z/ ;
+branch_func = /b(?!\s)/ @:cmpr_func ;
+cmpi_func = (@:cmpr_func /(?<!\s)i/) ;
+cmpr_func = cmp_func0 | cmp_func1 ;
+cmp_func0 = /eq|ne|[lg]te?/ ;
+cmp_func1 = ('t' | 'f');
+
+jal = func:'jal' fmt:fmt3;
+
+pseudo = (func:'br' fmt:fmt7)
+    | (func:'not' fmt:fmt8)
+    | (func:/b[lg]e/ fmt:fmt5)
+    | (func:/call|jmp/ fmt:fmt9)
+    | (func:'ret') ;
+
+fmt0 = rd:reg ',' rs1:reg ',' rs2:reg ;
+fmt1 = rd:reg ',' rs1:reg ',' imm:imm ;
+fmt2 = rd:reg ',' imm:imm ;
+fmt3 = rd:reg ',' imm:imm '(' rs1:reg ')' ;
+fmt4 = rs2:reg ',' imm:imm '(' rs1:reg ')' ;
+fmt5 = rs1:reg ',' rs2:reg ',' imm:imm ;
+fmt6 = rs1:reg ',' imm:imm ;
+fmt7 = imm:imm ;
+fmt8 = rd:reg ',' rs:reg ;
+fmt9 = imm:imm '(' rs1:reg ')' ;
+
+reg = /r(1[0-5]|[0-9])|a[0-3]|t[01]|s[0-2]|[gfs]p|r[va]/ ;
+
+imm = n:num | s:str ;
+num = hex | dec ;
+hex = /0x[0-9a-fA-F]{1,8}/;
+dec = /-?[0-9]+/ ;
+str = /[a-zA-Z_][a-zA-Z0-9_]*/ ;
