@@ -41,15 +41,16 @@ def getImm(ast):
     if not 'imm' in ast['fmt']:
         return '000'
     imm = ast['fmt']['imm']
-    ret = ''
+    ret = 0
     if imm['n'] is not None:
         ret = imm['n']
     else:
         ret = LABEL[imm['s']]
         if 'pc_rel' in ast:
-            ret -= ast['addr']
-        ret = hex(ret & 0xFFFF)[2:].rjust(4, '0')
-    return ret
+            ret -= ast['addr'] - 4
+    if ast['func'] == 'mvh':
+        ret = ret >> 16
+    return hex(ret & 0xFFFF)[2:].rjust(4, '0')
 
 def writeOut(ast):
     global OUTPUT
@@ -57,16 +58,17 @@ def writeOut(ast):
     func_pre = ast['func_pre'] if 'func_pre' in ast else ''
     func_post = ast['func_post'] if 'func_post' in ast else ''
     func = func_pre + ast['func'] + func_post
-    OUTPUT += '-- @ {0} : {1}\t{2}\n'.format(addr, func, ast['fmt']['comment'])
+    OUTPUT += '-- @ {0} : {1}\t{2}\n'.format(addr.lower(), func.upper(), ast['fmt']['comment'].upper())
 
     addr = hex(ast['addr'] >> 2)[2:].rjust(8, '0')
     func = hex(ast['func_val'])[2:]
     opcd = hex(ast['opcd'])[2:]
 
     fmt = ast['fmt']
-    val = (getReg(fmt, 'rd') + getReg(fmt, 'rs1') + getReg(fmt, 'rs2')).ljust(2,'0') + getImm(ast)
+    val = getReg(fmt, 'rd') + getReg(fmt, 'rs1') + getReg(fmt, 'rs2')
+    val = val.ljust(2,'0') + getImm(ast)
 
-    OUTPUT += '{0} : {1}{2}{3};\n'.format(addr, val, func, opcd)
+    OUTPUT += '{0} : {1}{2}{3};\n'.format(addr.lower(), val.lower(), func.lower(), opcd.lower())
 
 class asm_grammarSemantics(object):
     def orig(self, ast):
@@ -76,7 +78,6 @@ class asm_grammarSemantics(object):
 
     def name(self, ast):
         global LABEL
-        print (ast)
         LABEL[ast[0]] = int(ast[1])
         return None
 
@@ -89,13 +90,16 @@ class asm_grammarSemantics(object):
     def instruction(self, ast):
         global ADDR
         if ast is None:
-            ast = {}
+            return None
         ast.update({'addr': ADDR})
         ADDR += 4
         return ast
 
     def alu(self, ast):
         func = ALU[ast['func'].lower()]
+        if ast['func'].lower() == 'mvhi':
+            del ast['func']
+            ast['func'] = 'mvh'
         ast['func_val'] = int(func)
         return ast
 
@@ -158,10 +162,16 @@ class asm_grammarSemantics(object):
     #ToDo
     def pseudo(self, ast):
         p = ast['func'].lower()
+        ret = {}
         if p == 'br':
-            pass
+            ret['func'] = 'eq'
+            ret['fmt'] = self.fmt5({'imm':ast['fmt']['imm'], 'rs1':'r6', 'rs2':'r6'})
+            return self.cmp(self.branch(ret))
         elif p == 'not':
-            pass
+            ret['func'] = 'nand'
+            rs = ast['fmt']['rs']
+            ret['fmt'] = self.fmt0({'rd':ast['fmt']['rd'], 'rs1':rs, 'rs2':rs})
+            return self.alu(self.alur(ret))
         elif p == 'ble':
             pass
         elif p == 'bge':
@@ -178,37 +188,37 @@ class asm_grammarSemantics(object):
         return None
 
     def fmt0(self, ast):
-        ast.update({'comment' : '{0}, {1}, {2}'.format(ast['rd'], ast['rs1'], ast['rs2'])})
+        ast.update({'comment' : '{0},{1},{2}'.format(ast['rd'], ast['rs1'], ast['rs2'])})
         return ast
 
     def fmt1(self, ast):
         imm = ast['imm']['n'] if ast['imm']['s'] is None else ast['imm']['s']
-        ast.update({'comment' : '{0}, {1}, {2}'.format(ast['rd'], ast['rs1'], imm)})
+        ast.update({'comment' : '{0},{1},{2}'.format(ast['rd'], ast['rs1'], imm)})
         return ast
 
     def fmt2(self, ast):
         imm = ast['imm']['n'] if ast['imm']['s'] is None else ast['imm']['s']
-        ast.update({'comment' : '{0}, {1}'.format(ast['rd'], imm)})
+        ast.update({'comment' : '{0},{1}'.format(ast['rd'], imm)})
         return ast
 
     def fmt3(self, ast):
         imm = ast['imm']['n'] if ast['imm']['s'] is None else ast['imm']['s']
-        ast.update({'comment' : '{0}, {1}({2})'.format(ast['rd'], imm, ast['rs1'])})
+        ast.update({'comment' : '{0},{1}({2})'.format(ast['rd'], imm, ast['rs1'])})
         return ast
 
     def fmt4(self, ast):
         imm = ast['imm']['n'] if ast['imm']['s'] is None else ast['imm']['s']
-        ast.update({'comment' : '{0}, {1}({2})'.format(ast['rs2'], imm, ast['rs1'])})
+        ast.update({'comment' : '{0},{1}({2})'.format(ast['rs2'], imm, ast['rs1'])})
         return ast
 
     def fmt5(self, ast):
         imm = ast['imm']['n'] if ast['imm']['s'] is None else ast['imm']['s']
-        ast.update({'comment' : '{0}, {1}, {2}'.format(ast['rs1'], ast['rs2'], imm)})
+        ast.update({'comment' : '{0},{1},{2}'.format(ast['rs1'], ast['rs2'], imm)})
         return ast
 
     def fmt6(self, ast):
         imm = ast['imm']['n'] if ast['imm']['s'] is None else ast['imm']['s']
-        ast.update({'comment' : '{0}, {1}'.format(ast['rs1'], imm)})
+        ast.update({'comment' : '{0},{1}'.format(ast['rs1'], imm)})
         return ast
 
     def fmt7(self, ast):
@@ -217,7 +227,7 @@ class asm_grammarSemantics(object):
         return ast
 
     def fmt8(self, ast):
-        ast.update({'comment' : '{0}, {1}'.format(ast['rd'], ast['rs'])})
+        ast.update({'comment' : '{0},{1}'.format(ast['rd'], ast['rs'])})
         return ast
 
     def fmt9(self, ast):
@@ -250,19 +260,21 @@ def main(filename):
         nameguard=None,
         semantics=asm_grammarSemantics())
 
-    print('AST:')
-    print(ast)
-    print()
-    print('JSON:')
-    print(json.dumps(ast, indent=2))
-    print()
+#    print('AST:')
+#    print(ast)
+#    print()
+#    print('JSON:')
+#    print(json.dumps(ast, indent=2))
+#    print()
 
+    OUTPUT = 'WIDTH=32;\nDEPTH=2048;\nADDRESS_RADIX=HEX;\nDATA_RADIX=HEX;\nCONTENT BEGIN\n[00000000..0000000f] : DEAD;\n'
     for s in ast:
         if 'word' in s:
             continue
         writeOut(s)
-
-    print(OUTPUT)
+   
+    with open(filename[0:filename.find('.')] + '.mif', 'w') as f:
+        f.writelines(OUTPUT)
 
 
 if __name__ == '__main__':
