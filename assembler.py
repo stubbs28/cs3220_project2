@@ -235,7 +235,7 @@ class asm_grammarSemantics(object):
     def __default__(self, ast):
         return ast
 
-def main(filename, startrule, trace=False, whitespace=None, nameguard=None):
+def main(filename):
     global OUTPUT
     import json
     with open(filename) as f:
@@ -243,11 +243,11 @@ def main(filename, startrule, trace=False, whitespace=None, nameguard=None):
     parser = asm_grammarParser(eol_comments_re=';.*?$', ignorecase=True, parseinfo=False)
     ast = parser.parse(
         text,
-        startrule,
+        'start',
         filename=filename,
-        trace=trace,
-        whitespace=whitespace,
-        nameguard=nameguard,
+        trace=False,
+        whitespace=None,
+        nameguard=None,
         semantics=asm_grammarSemantics())
 
     print('AST:')
@@ -270,33 +270,8 @@ if __name__ == '__main__':
     import string
     import sys
 
-    class ListRules(argparse.Action):
-        def __call__(self, parser, namespace, values, option_string):
-            print('Rules:')
-            for r in asm_grammarParser.rule_list():
-                print(r)
-            print()
-            sys.exit(0)
-
     parser = argparse.ArgumentParser(description="Simple parser for asm_grammar.")
-    parser.add_argument('-l', '--list', action=ListRules, nargs=0,
-                        help="list all rules and exit")
-    parser.add_argument('-n', '--no-nameguard', action='store_true',
-                        dest='no_nameguard',
-                        help="disable the 'nameguard' feature")
-    parser.add_argument('-t', '--trace', action='store_true',
-                        help="output trace information")
-    parser.add_argument('-w', '--whitespace', type=str, default=string.whitespace,
-                        help="whitespace specification")
     parser.add_argument('file', metavar="FILE", help="the input file to parse")
-    parser.add_argument('startrule', metavar="STARTRULE",
-                        help="the start rule for parsing")
     args = parser.parse_args()
 
-    main(
-        args.file,
-        args.startrule,
-        trace=args.trace,
-        whitespace=args.whitespace,
-        nameguard=not args.no_nameguard
-    )
+    main(args.file)
