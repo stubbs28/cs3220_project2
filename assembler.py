@@ -84,7 +84,7 @@ class asm_grammarSemantics(object):
 
     def word(self, ast):
         global ADDR
-        ast.update({'addr' : ADDR})
+        ast['addr'] = ADDR
         ADDR += 4
         return ast
 
@@ -303,7 +303,9 @@ def main(filename):
     OUTPUT = 'WIDTH=32;\nDEPTH=2048;\nADDRESS_RADIX=HEX;\nDATA_RADIX=HEX;\nCONTENT BEGIN\n[00000000..0000000f] : DEAD;\n'
     for s in ast:
         if 'word' in s:
-            continue
+            w = s['word']
+            # TODO
+            OUTPUT += hex(w['addr'] >> 2)[2:].rjust(8, '0') + ' : ' + 'todo'
         writeOut(s)
     OUTPUT += '[{0}..07ff] : DEAD;\nEND;\n'.format(hex(ADDR>>2)[2:].rjust(4, '0'))
    
