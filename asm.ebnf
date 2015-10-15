@@ -10,8 +10,8 @@ instruction = alu | load | store | cmp | jal | pseudo;
 
 label = !reserved label:str ':' ;
 
-reserved = alui_func | alu_func | branchz_func | branch_func 
-        | cmpi_func | cmpr_func | /mvhi|[ls]w|jal|br|not|b[lg]e|call|jmp|ret/;
+reserved = (alui_func | alu_func | branchz_func | branch_func 
+        | cmpi_func | cmpr_func | /mvhi|[ls]w|jal|br|not|b[lg]e|call|jmp|ret/)/(?!\w)/;
 
 alu =  alui | alur;
 alui = (func:alui_func fmt:fmt1) 
