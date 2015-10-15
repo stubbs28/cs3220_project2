@@ -1,80 +1,104 @@
 import math
 from asm_grammar import asm_grammarParser
 
-ADDR = None
-OUTPUT = ''
+ALUR = ['add',     'sub',      '',         '',
+        'and',     'or',       'xor',      '',
+        '',        '',         '',         '',
+        'nand',    'nor',      'xnor',     '']
+
+ALUI = [a if a == '' else a + 'i' for a in ALUR]
+ALUI[11] = 'mvhi'
+
+CMPR = ['f',       'eq',       'lt',       'lte',
+        '',        '',         '',         '',
+        't',       'ne',       'gte',      'gt',
+        '',        '',         '',         '']
+
+CMPI = [a if a == '' else a + 'i' for a in CMPR]
+
+BRANCH = [a if a == '' else 'b' + a for a in CMPR]
+for x in range(1,4):
+    BRANCH[x + 4] = BRANCH[x] + 'z'
+    BRANCH[x + 12] = BRANCH[x + 8] + 'z'
+
+OPCODE = [('alur',ALUR),    ('',None),      ('cmpr',CMPR),      ('',None),
+        ('',None),          ('sw',None),    ('branch',BRANCH),  ('',None),
+        ('alui',ALUI),      ('lw',None),    ('cmpi',CMPI),      ('jal',None),
+        ('',None),          ('',None),      ('',None),          ('',None)]
+
+REG = [['r' + str(x)] for x in range(16)]
+for x in range(4):
+    REG[x] += ['a' + str(x)]
+for x in range(2):
+    REG[x + 4] += ['t' + str(x)]
+for x in range(3):
+    REG[x + 6] += ['s' + str(x)]
+REG[12] += ['gp']
+REG[13] += ['fp']
+REG[14] += ['sp']
+REG[15] += ['ra']
+
+PC = 0
 LABEL = {}
 
-ALU = {'add':0, 'sub':1, 'and':4, 'or':5, 'xor':6, 'nand':12, 'nor':13, 'xnor':14, 'mvhi':11}
-CMP = {'f':0, 'eq':1, 'lt':2, 'lte':3, 't':8, 'ne':9, 'gte':10, 'gt':11}
-
-def htosi(val):
-    uintval = int(val,16)
-    bits = 4 * (len(val) - 2)
-    if uintval >= math.pow(2, bits-1):
-        uintval = int(0 - (math.pow(2, bits) - uintval))
-    return uintval
-
-def getReg(reg, key):
-    if not key in reg:
-        return ''
-    ret = reg[key].lower()
-    if ret == 'rv':
-        ret = 3
-    elif ret == 'ra':
-        ret = 15
-    elif ret == 'sp':
-        ret = 14
-    elif ret == 'fp':
-        ret = 13
-    elif ret == 'gp':
-        ret = 12
-    elif ret[0] == 't':
-        ret = int(ret[1]) + 4
-    elif ret[0] == 's':
-        ret = int(ret[1]) + 6
-    else:
-        ret = int(ret[1:])
-    return hex(ret)[2:]
+def getReg(fmt, key):
+    x = 0
+    key = key.lower()
+    if key in fmt:
+        reg = fmt[key].lower()
+        for num in REG:
+            if reg in num:
+                return '{0:x}'.format(x)
+            x += 1
+    return ''
 
 def getImm(ast):
+    global PC
     if not 'imm' in ast['fmt']:
-        return '000'
-    imm = ast['fmt']['imm']
+        return None
     ret = 0
+    imm = ast['fmt']['imm']
     if imm['n'] is not None:
         ret = imm['n']
     else:
         ret = LABEL[imm['s']]
-        if 'pc_rel' in ast:
-            ret = (ret - (ast['addr']>>2) - 1)
-    if ast['func'] == 'mvh':
-        ret = ret >> 16
-    return hex(ret & 0xFFFF)[2:].rjust(4, '0')
+        if 'pcrel' in ast:
+            ret = ret - ast['pc'] - 1
+        elif ast['instr'].lower() == 'mvhi':
+            ret = ret >> 16
+    return '{0:04x}'.format(ret & 0xFFFF)
 
-def writeOut(ast):
-    global OUTPUT
-    if 'comment' in ast['fmt']:
-        addr = '0x' + hex(ast['addr'])[2:].rjust(8, '0')
-        func_pre = ast['func_pre'] if 'func_pre' in ast else ''
-        func_post = ast['func_post'] if 'func_post' in ast else ''
-        func = func_pre + ast['func'] + func_post
-        OUTPUT += '-- @ {0} : {1}\t{2}\n'.format(addr.lower(), func.upper(), ast['fmt']['comment'].upper())
+def getOpcode(group, instr):
+    global OPCODE
+    lower = 0
+    upper = 0
+    for g,funcs in OPCODE:
+        if group == g:
+            if funcs is not None:
+                for f in funcs:
+                    if instr.lower() == f:
+                        break
+                    upper += 1
+            break
+        lower += 1
+    return '{0:02x}'.format((upper << 4) | lower)
 
-    addr = hex(ast['addr'] >> 2)[2:].rjust(8, '0')
-    func = hex(ast['func_val'])[2:]
-    opcd = hex(ast['opcd'])[2:]
+def writeComment(ast):
+    memaddr = (ast['pc'] << 2) & 0xffffffff
+    return '-- @ {0:#010x} : {1}\t{2}\n'.format(memaddr, ast['instr'].upper(), ast['fmt']['comment'].upper())
 
+def writeMem(ast):
+    memaddr = ast['pc'] & 0xffffffff
     fmt = ast['fmt']
     val = getReg(fmt, 'rd') + getReg(fmt, 'rs1') + getReg(fmt, 'rs2')
-    val = val.ljust(2,'0') + getImm(ast)
-
-    OUTPUT += '{0} : {1}{2}{3};\n'.format(addr.lower(), val.lower(), func.lower(), opcd.lower())
+    imm = getImm(ast)
+    val = val.ljust(6,'0') if imm is None else val.ljust(2,'0') + imm
+    return '{0:08x} : {1}{2};\n'.format(memaddr, val, ast['opcode'])
 
 class asm_grammarSemantics(object):
     def orig(self, ast):
-        global ADDR
-        ADDR = ast
+        global PC
+        PC = (ast >> 2)
         return None
 
     def name(self, ast):
@@ -83,141 +107,106 @@ class asm_grammarSemantics(object):
         return None
 
     def word(self, ast):
-        global ADDR
-        ast['addr'] = ADDR
-        ADDR += 4
+        global PC
+        ast['pc'] = PC
+        pc += 4
         return ast
 
     def instruction(self, ast):
-        global ADDR
-        ast['addr'] = ADDR
-        ADDR += 4
-        return ast
-
-    def alu(self, ast):
-        func = ALU[ast['func'].lower()]
-        if ast['func'].lower() == 'mvhi':
-            del ast['func']
-            ast['func'] = 'mvh'
-        ast['func_val'] = int(func)
+        global PC
+        ast['pc'] = PC
+        PC += 1
         return ast
 
     def alui(self, ast):
-        ast['func_post'] = 'i'
-        ast['opcd'] = 8 
+        ast['opcode'] = getOpcode('alui', ast['instr'])
         return ast
 
     def alur(self, ast):
-        ast['opcd'] = 0 
+        global ALUR
+        ast['opcode'] = getOpcode('alur', ast['instr'])
         return ast
 
     def load(self, ast):
-        ast['func_val'] = 0
-        ast['opcd'] = 9 
+        ast['opcode'] = getOpcode('lw', ast['instr'])
         return ast
 
     def store(self, ast):
-        ast['func_val'] = 0
-        ast['opcd'] = 5
-        return ast
-
-    def cmp(self, ast):
-        func_val = ast['func_val'] + CMP[ast['func'].lower()]
-        del ast['func_val']
-        ast['func_val'] = func_val
+        ast['opcode'] = getOpcode('sw', ast['instr'])
         return ast
 
     def cmpi(self, ast):
-        ast['func_post'] = 'i'
-        ast['func_val'] = 0
-        ast['opcd'] = 10
+        ast['opcode'] = getOpcode('cmpi', ast['instr'])
         return ast
 
     def cmpr(self, ast):
-        ast['func_val'] = 0
-        ast['opcd'] = 2 
+        ast['opcode'] = getOpcode('cmpr', ast['instr'])
         return ast
 
     def branchz(self, ast):
-        ast['pc_rel'] = True
-        ast['func_pre'] = 'b'
-        ast['func_post'] = 'z'
-        ast['func_val'] = 4
-        ast['opcd'] = 6 
+        ast['pcrel'] = True
+        ast['opcode'] = getOpcode('branch', ast['instr'])
         return ast
 
     def branch(self, ast):
-        ast['pc_rel'] = True
-        ast['func_pre'] = 'b'
-        ast['func_val'] = 0
-        ast['opcd'] = 6 
+        ast['pcrel'] = True
+        ast['opcode'] = getOpcode('branch', ast['instr'])
         return ast
 
     def jal(self, ast):
-        ast['func_val'] = 0
-        ast['opcd'] = 11 
+        ast['opcode'] = getOpcode('jal', ast['instr'])
         return ast
 
     #ToDo
     def pseudo(self, ast):
-        global ADDR
-        p = ast['func'].lower()
+        global PC
+        p = ast['instr'].lower()
         ret = {}
+        ast['pc'] = PC
         if p == 'br':
-            ast['pc_rel'] = True
-            ast['func_val'] = CMP['eq']
-            ast['opcd'] = 6
+            ast['pcrel'] = True
+            ast['opcode'] = getOpcode('branch', 'beq')
             ast['fmt']['rs1'] = 'r6'
             ast['fmt']['rs2'] = 'r6'
-            ast['addr'] = ADDR
         elif p == 'not':
-            ast['func_val'] = ALU['nand']
-            ast['opcd'] = 0
+            ast['opcode'] = getOpcode('alur', 'nand')
             ast['fmt']['rs1'] = ast['fmt']['rs']
             ast['fmt']['rs2'] = ast['fmt']['rs']
             del ast['fmt']['rs']
-            ast['addr'] = ADDR
         elif p == 'ble' or p == 'bge':
             rs1 = ast['fmt']['rs1']
             rs2 = ast['fmt']['rs2']
             imm = ast['fmt']['imm']
             ret = [{
-                        'addr':ADDR,
-                        'func': p,
-                        'func_val':CMP[p[1]+'te'],
-                        'opcd':2,
+                        'pc':PC,
+                        'instr': p,
+                        'opcode': getOpcode('cmpr', p[1] + 'te'),
                         'fmt': { 'comment':ast['fmt']['comment'], 'rd':'r6', 'rs1':rs1, 'rs2':rs2 }
                    },
                    {
-                        'addr':(ADDR + 4),
-                        'func': p,
-                        'func_val':CMP['ne'] + 4,
-                        'opcd':6,
+                        'pcrel': True,
+                        'pc':(PC + 1),
+                        'instr': p,
+                        'opcode':getOpcode('branch', 'bnez'),
                         'fmt': { 'rs1':'r6', 'imm':imm }
                    }]
             ast.clear()
             ast = ret
-            ADDR += 4
+            PC += 1
         elif p == 'call':
-            ast['addr'] = ADDR
-            ast['func_val'] = 0 
-            ast['opcd'] = 11
+            ast['opcode'] = getOpcode('jal', None)
             ast['fmt']['rd'] = 'ra'
         elif p == 'ret':
-            ast['addr'] = ADDR
-            ast['func_val'] = 0 
-            ast['opcd'] = 11
+            ast['opcode'] = getOpcode('jal', None)
             ast['fmt'] = {'rd':'r9', 'rs1':'ra', 'imm':{'n':0, 's':None}, 'comment':''}
         elif p == 'jmp':
-            ast['addr'] = ADDR
-            ast['func_val'] = 0 
-            ast['opcd'] = 11
+            ast['opcode'] = getOpcode('jal', None)
             ast['fmt']['rd'] = 'r9'
-        ADDR += 4
+        PC += 1
         return ast
 
     def label(self, ast):
-        LABEL[ast['label']] = ADDR >> 2
+        LABEL[ast['label']] = PC
         return None
 
     def fmt0(self, ast):
@@ -269,8 +258,7 @@ class asm_grammarSemantics(object):
         return ast
 
     def hex(self, ast):
-        x = htosi('0x' + ast[2:].rjust(4, '0'))
-        return x
+        return int(ast, 16)
 
     def dec(self, ast):
         return int(ast)
@@ -279,11 +267,11 @@ class asm_grammarSemantics(object):
         return ast
 
 def main(filename):
-    global OUTPUT
+    global OUTPUT, PC
     import json
     with open(filename) as f:
         text = f.read()
-    parser = asm_grammarParser(eol_comments_re=';.*?$', ignorecase=True, parseinfo=False)
+    parser = asm_grammarParser(parseinfo=False)
     ast = parser.parse(
         text,
         'start',
@@ -303,11 +291,10 @@ def main(filename):
     OUTPUT = 'WIDTH=32;\nDEPTH=2048;\nADDRESS_RADIX=HEX;\nDATA_RADIX=HEX;\nCONTENT BEGIN\n[00000000..0000000f] : DEAD;\n'
     for s in ast:
         if 'word' in s:
-            w = s['word']
-            # TODO
-            OUTPUT += hex(w['addr'] >> 2)[2:].rjust(8, '0') + ' : ' + 'todo'
-        writeOut(s)
-    OUTPUT += '[{0}..07ff] : DEAD;\nEND;\n'.format(hex(ADDR>>2)[2:].rjust(4, '0'))
+            pass
+        OUTPUT += writeComment(s)
+        OUTPUT += writeMem(s)
+    OUTPUT += '[{0}..07ff] : DEAD;\nEND;\n'.format('{0:04x}'.format(PC))
    
     with open(filename[0:filename.find('.')] + '.mif', 'w') as f:
         f.writelines(OUTPUT)

@@ -1,3 +1,6 @@
+@@eol_comments :: /;.*?$/
+@@ignorecase :: True
+
 start = {statement}+ $ ;
 statement = meta | instruction | pseudo | label;
 
@@ -6,44 +9,44 @@ orig = '.orig' @:num ;
 word = '.word' word:imm ;
 name = '.name' @+:str '=' @+:num ;
 
-instruction = alu | load | store | cmp | jal;
+instruction = alu | load | store | compare | jal;
 
 label = !reserved label:str ':' ;
 
-reserved = (alui_func | alu_func | branchz_func | branch_func 
-        | cmpi_func | cmpr_func | /mvhi|[ls]w|jal|br|not|b[lg]e|call|jmp|ret/)/(?!\w)/;
+reserved = (alur_ins | alui_ins | cmpr_ins | cmpi_ins | branch_ins 
+        | branchz_ins | load_ins | jal_ins | pseudo_ins )/(?!\w)/;
 
 alu =  alui | alur;
-alui = (func:alui_func fmt:fmt1) 
-    | (func:'mvhi' fmt:fmt2) ;
-alur = func:alu_func fmt:fmt0 ;
+alui = (instr:alui_ins fmt:fmt1) 
+    | (instr:'mvhi' fmt:fmt2) ;
+alur = instr:alur_ins fmt:fmt0 ;
 
-alui_func = @:alu_func /(?<!\s)i/ ;
-alu_func = /add|sub|n?and|x?n?or/;
+load = instr:'lw' fmt:fmt3 ;
+store = instr:'sw' fmt:fmt4 ;
 
-load = func:'lw' fmt:fmt3 ;
-store = func:'sw' fmt:fmt4 ;
+compare = cmpi | cmpr | branchz | branch;
+cmpi = instr:cmpi_ins fmt:fmt1 ;
+cmpr =  instr:cmpr_ins fmt:fmt0 ;
+branchz = instr:branchz_ins fmt:fmt6 ;
+branch = instr:branch_ins fmt:fmt5 ;
 
-cmp = cmpi | cmpr | branchz | branch;
-cmpi = func:cmpi_func fmt:fmt1 ;
-cmpr =  func:cmpr_func fmt:fmt0 ;
-branchz = func:branchz_func fmt:fmt6 ;
-branch = func:branch_func fmt:fmt5 ;
+jal = instr:'jal' fmt:fmt3;
 
-branchz_func = /b(?!\s)/ @:cmp_func0 /(?<!\s)z/ ;
-branch_func = /b(?!\s)/ @:cmpr_func ;
-cmpi_func = (@:cmpr_func /(?<!\s)i/) ;
-cmpr_func = cmp_func0 | cmp_func1 ;
-cmp_func0 = /eq|ne|[lg]te?/ ;
-cmp_func1 = ('t' | 'f');
+pseudo = (instr:'br' fmt:fmt7)
+    | (instr:'not' fmt:fmt8)
+    | (instr:/b[lg]e/ fmt:fmt5)
+    | (instr:/call|jmp/ fmt:fmt9)
+    | (instr:'ret') ;
 
-jal = func:'jal' fmt:fmt3;
-
-pseudo = (func:'br' fmt:fmt7)
-    | (func:'not' fmt:fmt8)
-    | (func:/b[lg]e/ fmt:fmt5)
-    | (func:/call|jmp/ fmt:fmt9)
-    | (func:'ret') ;
+alur_ins = /add|sub|n?and|x?n?or/;
+alui_ins = /(add|sub|n?and|x?n?or)i/;
+cmpr_ins = /t|f|eq|ne|[lg]te?/ ;
+cmpi_ins = /(t|f|eq|ne|[lg]te?)i/ ;
+branch_ins = /b(t|f|eq|ne|[lg]te?)/ ;
+branchz_ins = /b(eq|ne|[lg]te?)z/ ;
+load_ins = /[ls]w/ ; 
+jal_ins = /jal/ ;
+pseudo_ins = /br|b[lg]e|call|jmp|ret/ ;
 
 fmt0 = rd:reg ',' rs1:reg ',' rs2:reg ;
 fmt1 = rd:reg ',' rs1:reg ',' imm:imm ;
