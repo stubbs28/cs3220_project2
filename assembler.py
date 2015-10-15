@@ -98,7 +98,11 @@ def writeMem(ast):
 class asm_grammarSemantics(object):
     def orig(self, ast):
         global PC
+        oldpc = PC
         PC = (ast >> 2)
+        diff = PC - oldpc - 1
+        if diff >= 0:
+            return {'dead':(oldpc, diff)}
         return None
 
     def name(self, ast):
@@ -109,7 +113,7 @@ class asm_grammarSemantics(object):
     def word(self, ast):
         global PC
         ast['pc'] = PC
-        pc += 4
+        pc += 1
         return ast
 
     def instruction(self, ast):
@@ -288,8 +292,18 @@ def main(filename):
 #    print(json.dumps(ast, indent=2))
 #    print()
 
-    OUTPUT = 'WIDTH=32;\nDEPTH=2048;\nADDRESS_RADIX=HEX;\nDATA_RADIX=HEX;\nCONTENT BEGIN\n[00000000..0000000f] : DEAD;\n'
+    OUTPUT = 'WIDTH=32;\nDEPTH=2048;\nADDRESS_RADIX=HEX;\nDATA_RADIX=HEX;\nCONTENT BEGIN\n'
     for s in ast:
+        if 'dead' in s:
+            d = s['dead']
+            if d[1] == 0:
+                OUTPUT += '{0:08x} : DEAD;\n'.format(d[0])
+            else:
+                if d[0] == 0:
+                    OUTPUT += '[{0:08x}..{1:08x}] : DEAD;\n'.format(d[0], d[1])
+                else:
+                    OUTPUT += '[{0:04x}..{1:04x}] : DEAD;\n'.format(d[0], d[0] + d[1])
+            continue
         if 'word' in s:
             pass
         OUTPUT += writeComment(s)
