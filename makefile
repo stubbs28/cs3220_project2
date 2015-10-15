@@ -5,4 +5,7 @@ test: asm_grammar.py
 	python assembler.py Test2.a32
 
 sorter: asm_grammar.py
-	python assembler.py Sorter2.a32
+	python assembler.py Sorter2.a32;
+
+clean:
+	rm asm_grammar.py Test2.mif Sorter2.mif

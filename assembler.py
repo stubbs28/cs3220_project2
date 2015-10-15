@@ -47,18 +47,19 @@ def getImm(ast):
     else:
         ret = LABEL[imm['s']]
         if 'pc_rel' in ast:
-            ret -= ast['addr'] - 4
+            ret = (ret - (ast['addr']>>2) - 1)
     if ast['func'] == 'mvh':
         ret = ret >> 16
     return hex(ret & 0xFFFF)[2:].rjust(4, '0')
 
 def writeOut(ast):
     global OUTPUT
-    addr = '0x' + hex(ast['addr'])[2:].rjust(8, '0')
-    func_pre = ast['func_pre'] if 'func_pre' in ast else ''
-    func_post = ast['func_post'] if 'func_post' in ast else ''
-    func = func_pre + ast['func'] + func_post
-    OUTPUT += '-- @ {0} : {1}\t{2}\n'.format(addr.lower(), func.upper(), ast['fmt']['comment'].upper())
+    if 'comment' in ast['fmt']:
+        addr = '0x' + hex(ast['addr'])[2:].rjust(8, '0')
+        func_pre = ast['func_pre'] if 'func_pre' in ast else ''
+        func_post = ast['func_post'] if 'func_post' in ast else ''
+        func = func_pre + ast['func'] + func_post
+        OUTPUT += '-- @ {0} : {1}\t{2}\n'.format(addr.lower(), func.upper(), ast['fmt']['comment'].upper())
 
     addr = hex(ast['addr'] >> 2)[2:].rjust(8, '0')
     func = hex(ast['func_val'])[2:]
@@ -89,9 +90,7 @@ class asm_grammarSemantics(object):
 
     def instruction(self, ast):
         global ADDR
-        if ast is None:
-            return None
-        ast.update({'addr': ADDR})
+        ast['addr'] = ADDR
         ADDR += 4
         return ast
 
@@ -144,47 +143,81 @@ class asm_grammarSemantics(object):
         ast['func_pre'] = 'b'
         ast['func_post'] = 'z'
         ast['func_val'] = 4
-        ast['opcd'] = 2 
+        ast['opcd'] = 6 
         return ast
 
     def branch(self, ast):
         ast['pc_rel'] = True
         ast['func_pre'] = 'b'
         ast['func_val'] = 0
-        ast['opcd'] = 2 
+        ast['opcd'] = 6 
         return ast
 
     def jal(self, ast):
-        ast['pc_rel'] = True
         ast['func_val'] = 0
         ast['opcd'] = 11 
+        return ast
 
     #ToDo
     def pseudo(self, ast):
+        global ADDR
         p = ast['func'].lower()
         ret = {}
         if p == 'br':
-            ret['func'] = 'eq'
-            ret['fmt'] = self.fmt5({'imm':ast['fmt']['imm'], 'rs1':'r6', 'rs2':'r6'})
-            return self.cmp(self.branch(ret))
+            ast['pc_rel'] = True
+            ast['func_val'] = CMP['eq']
+            ast['opcd'] = 6
+            ast['fmt']['rs1'] = 'r6'
+            ast['fmt']['rs2'] = 'r6'
+            ast['addr'] = ADDR
         elif p == 'not':
-            ret['func'] = 'nand'
-            rs = ast['fmt']['rs']
-            ret['fmt'] = self.fmt0({'rd':ast['fmt']['rd'], 'rs1':rs, 'rs2':rs})
-            return self.alu(self.alur(ret))
-        elif p == 'ble':
-            pass
-        elif p == 'bge':
-            pass
+            ast['func_val'] = ALU['nand']
+            ast['opcd'] = 0
+            ast['fmt']['rs1'] = ast['fmt']['rs']
+            ast['fmt']['rs2'] = ast['fmt']['rs']
+            del ast['fmt']['rs']
+            ast['addr'] = ADDR
+        elif p == 'ble' or p == 'bge':
+            rs1 = ast['fmt']['rs1']
+            rs2 = ast['fmt']['rs2']
+            imm = ast['fmt']['imm']
+            ret = [{
+                        'addr':ADDR,
+                        'func': p,
+                        'func_val':CMP[p[1]+'te'],
+                        'opcd':2,
+                        'fmt': { 'comment':ast['fmt']['comment'], 'rd':'r6', 'rs1':rs1, 'rs2':rs2 }
+                   },
+                   {
+                        'addr':(ADDR + 4),
+                        'func': p,
+                        'func_val':CMP['ne'] + 4,
+                        'opcd':6,
+                        'fmt': { 'rs1':'r6', 'imm':imm }
+                   }]
+            ast.clear()
+            ast = ret
+            ADDR += 4
         elif p == 'call':
-            pass
+            ast['addr'] = ADDR
+            ast['func_val'] = 0 
+            ast['opcd'] = 11
+            ast['fmt']['rd'] = 'ra'
         elif p == 'ret':
-            pass
+            ast['addr'] = ADDR
+            ast['func_val'] = 0 
+            ast['opcd'] = 11
+            ast['fmt'] = {'rd':'r9', 'rs1':'ra', 'imm':{'n':0, 's':None}, 'comment':''}
         elif p == 'jmp':
-            pass
+            ast['addr'] = ADDR
+            ast['func_val'] = 0 
+            ast['opcd'] = 11
+            ast['fmt']['rd'] = 'r9'
+        ADDR += 4
+        return ast
 
     def label(self, ast):
-        LABEL[ast['label']] = ADDR
+        LABEL[ast['label']] = ADDR >> 2
         return None
 
     def fmt0(self, ast):
@@ -272,10 +305,10 @@ def main(filename):
         if 'word' in s:
             continue
         writeOut(s)
+    OUTPUT += '[{0}..07ff] : DEAD;\nEND;\n'.format(hex(ADDR>>2)[2:].rjust(4, '0'))
    
     with open(filename[0:filename.find('.')] + '.mif', 'w') as f:
         f.writelines(OUTPUT)
-
 
 if __name__ == '__main__':
     import argparse

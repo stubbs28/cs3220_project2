@@ -1,12 +1,12 @@
 start = {statement}+ $ ;
-statement = meta | instruction | label;
+statement = meta | instruction | pseudo | label;
 
 meta = orig | word | name ;
 orig = '.orig' @:num ;
 word = '.word' word:imm ;
 name = '.name' @+:str '=' @+:num ;
 
-instruction = alu | load | store | cmp | jal | pseudo;
+instruction = alu | load | store | cmp | jal;
 
 label = !reserved label:str ':' ;
 
