@@ -66,6 +66,8 @@ def getImm(ast):
             ret = ret - ast['pc'] - 1
         elif ast['instr'].lower() == 'mvhi':
             ret = ret >> 16
+    if ast['instr'] == 'word':
+        return '{0:08x}'.format(ret & 0xFFFFFFFF)
     return '{0:04x}'.format(ret & 0xFFFF)
 
 def getOpcode(group, instr):
@@ -112,9 +114,9 @@ class asm_grammarSemantics(object):
 
     def word(self, ast):
         global PC
-        ast['pc'] = PC
-        pc += 1
-        return ast
+        ret = {'word':{'pc':PC,'instr':'word','fmt':{'imm':ast['word']}}}
+        PC += 1
+        return ret
 
     def instruction(self, ast):
         global PC
@@ -305,7 +307,10 @@ def main(filename):
                     OUTPUT += '[{0:04x}..{1:04x}] : DEAD;\n'.format(d[0], d[0] + d[1])
             continue
         if 'word' in s:
-            pass
+            w = s['word']
+            OUTPUT += '{0} : {1}'.format(w['pc'], getImm(w))
+            print('{0:08x} : {1}'.format(w['pc'], getImm(w)))
+            continue
         OUTPUT += writeComment(s)
         OUTPUT += writeMem(s)
     OUTPUT += '[{0}..07ff] : DEAD;\nEND;\n'.format('{0:04x}'.format(PC))
