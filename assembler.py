@@ -275,6 +275,10 @@ class asm_grammarSemantics(object):
 def main(filename):
     global OUTPUT, PC
     import json
+
+    WIDTH = 32
+    DEPTH = 2048
+
     with open(filename) as f:
         text = f.read()
     parser = asm_grammarParser(parseinfo=False)
@@ -287,24 +291,15 @@ def main(filename):
         nameguard=None,
         semantics=asm_grammarSemantics())
 
-#    print('AST:')
-#    print(ast)
-#    print()
-#    print('JSON:')
-#    print(json.dumps(ast, indent=2))
-#    print()
-
-    OUTPUT = 'WIDTH=32;\nDEPTH=2048;\nADDRESS_RADIX=HEX;\nDATA_RADIX=HEX;\nCONTENT BEGIN\n'
+    OUTPUT = 'WIDTH={0};\nDEPTH={1};\nADDRESS_RADIX=HEX;\nDATA_RADIX=HEX;\nCONTENT BEGIN\n'
+    OUTPUT = OUTPUT.format(WIDTH, DEPTH)
     for s in ast:
         if 'dead' in s:
             d = s['dead']
             if d[1] == 0:
                 OUTPUT += '{0:08x} : DEAD;\n'.format(d[0])
             else:
-                if d[0] == 0:
-                    OUTPUT += '[{0:08x}..{1:08x}] : DEAD;\n'.format(d[0], d[1])
-                else:
-                    OUTPUT += '[{0:04x}..{1:04x}] : DEAD;\n'.format(d[0], d[0] + d[1])
+                OUTPUT += '[{0:08x}..{1:08x}] : DEAD;\n'.format(d[0], d[1])
             continue
         if 'word' in s:
             w = s['word']
@@ -313,7 +308,7 @@ def main(filename):
             continue
         OUTPUT += writeComment(s)
         OUTPUT += writeMem(s)
-    OUTPUT += '[{0}..07ff] : DEAD;\nEND;\n'.format('{0:04x}'.format(PC))
+    OUTPUT += '[{0:08x}..{1:08x}] : DEAD;\n'.format(PC, DEPTH-1)
    
     with open(filename[0:filename.find('.')] + '.mif', 'w') as f:
         f.writelines(OUTPUT)
