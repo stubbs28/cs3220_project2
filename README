@@ -1,0 +1,9 @@
+Usage:
+    $ python assembler.py [input file]
+
+    run 'make' to generate the parser
+
+Dependancies:
+    This project requires Python3.0 and grako3.6.5
+
+    grako: https://pypi.python.org/pypi/grako
