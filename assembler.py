@@ -299,8 +299,7 @@ def main(filename):
             continue
         if 'word' in s:
             w = s['word']
-            OUTPUT += '{0} : {1}'.format(w['pc'], getImm(w))
-            print('{0:08x} : {1}'.format(w['pc'], getImm(w)))
+            OUTPUT += '{0:08x} : {1}'.format(w['pc'], getImm(w))
             continue
         OUTPUT += writeComment(s)
         OUTPUT += writeMem(s)
