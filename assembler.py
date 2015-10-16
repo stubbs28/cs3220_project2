@@ -97,6 +97,10 @@ def writeMem(ast):
     val = val.ljust(6,'0') if imm is None else val.ljust(2,'0') + imm
     return '{0:08x} : {1}{2};\n'.format(memaddr, val, ast['opcode'])
 
+def immHelper(ast):
+    return ast['imm']['n'] if ast['imm']['s'] is None else ast['imm']['s']
+
+
 class asm_grammarSemantics(object):
     def orig(self, ast):
         global PC
@@ -220,38 +224,31 @@ class asm_grammarSemantics(object):
         return ast
 
     def fmt1(self, ast):
-        imm = ast['imm']['n'] if ast['imm']['s'] is None else ast['imm']['s']
-        ast.update({'comment' : '{0},{1},{2}'.format(ast['rd'], ast['rs1'], imm)})
+        ast.update({'comment' : '{0},{1},{2}'.format(ast['rd'], ast['rs1'], immHelper(ast))})
         return ast
 
     def fmt2(self, ast):
-        imm = ast['imm']['n'] if ast['imm']['s'] is None else ast['imm']['s']
-        ast.update({'comment' : '{0},{1}'.format(ast['rd'], imm)})
+        ast.update({'comment' : '{0},{1}'.format(ast['rd'], immHelper(ast))})
         return ast
 
     def fmt3(self, ast):
-        imm = ast['imm']['n'] if ast['imm']['s'] is None else ast['imm']['s']
-        ast.update({'comment' : '{0},{1}({2})'.format(ast['rd'], imm, ast['rs1'])})
+        ast.update({'comment' : '{0},{1}({2})'.format(ast['rd'], immHelper(ast), ast['rs1'])})
         return ast
 
     def fmt4(self, ast):
-        imm = ast['imm']['n'] if ast['imm']['s'] is None else ast['imm']['s']
-        ast.update({'comment' : '{0},{1}({2})'.format(ast['rs2'], imm, ast['rs1'])})
+        ast.update({'comment' : '{0},{1}({2})'.format(ast['rs2'], immHelper(ast), ast['rs1'])})
         return ast
 
     def fmt5(self, ast):
-        imm = ast['imm']['n'] if ast['imm']['s'] is None else ast['imm']['s']
-        ast.update({'comment' : '{0},{1},{2}'.format(ast['rs1'], ast['rs2'], imm)})
+        ast.update({'comment' : '{0},{1},{2}'.format(ast['rs1'], ast['rs2'], immHelper(ast))})
         return ast
 
     def fmt6(self, ast):
-        imm = ast['imm']['n'] if ast['imm']['s'] is None else ast['imm']['s']
-        ast.update({'comment' : '{0},{1}'.format(ast['rs1'], imm)})
+        ast.update({'comment' : '{0},{1}'.format(ast['rs1'], immHelper(ast))})
         return ast
 
     def fmt7(self, ast):
-        imm = ast['imm']['n'] if ast['imm']['s'] is None else ast['imm']['s']
-        ast.update({'comment' : '{0}'.format(imm)})
+        ast.update({'comment' : '{0}'.format(immHelper(ast))})
         return ast
 
     def fmt8(self, ast):
@@ -259,8 +256,7 @@ class asm_grammarSemantics(object):
         return ast
 
     def fmt9(self, ast):
-        imm = ast['imm']['n'] if ast['imm']['s'] is None else ast['imm']['s']
-        ast.update({'comment' : '{0}({1})'.format(imm, ast['rs1'])})
+        ast.update({'comment' : '{0}({1})'.format(immHelper(ast), ast['rs1'])})
         return ast
 
     def hex(self, ast):
