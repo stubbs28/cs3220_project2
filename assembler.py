@@ -97,9 +97,20 @@ def writeMem(ast):
     val = val.ljust(6,'0') if imm is None else val.ljust(2,'0') + imm
     return '{0:08x} : {1}{2};\n'.format(memaddr, val, ast['opcode'])
 
+# This Method is a helper for formatting comments
 def immHelper(ast):
-    return ast['imm']['n'] if ast['imm']['s'] is None else ast['imm']['s']
-
+    imm = ast['imm']
+    h = imm['h']
+    d = imm['d']
+    s = imm['s']
+    try:
+        del imm['h']
+        del imm['d']
+    except:
+        print(ast)
+        exit()
+    imm.update({'n':h if d is None else d})
+    return '{0:#x}'.format(h) if d is None and s is None else d if s is None else s
 
 class asm_grammarSemantics(object):
     def orig(self, ast):
@@ -167,7 +178,6 @@ class asm_grammarSemantics(object):
         ast['opcode'] = getOpcode('jal', ast['instr'])
         return ast
 
-    #ToDo
     def pseudo(self, ast):
         global PC
         p = ast['instr'].lower()

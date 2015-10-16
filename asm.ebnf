@@ -49,19 +49,20 @@ jal_ins = /jal/ ;
 pseudo_ins = /br|b[lg]e|call|jmp|ret/ ;
 
 fmt0 = rd:reg ',' rs1:reg ',' rs2:reg ;
-fmt1 = rd:reg ',' rs1:reg ',' imm:imm ;
-fmt2 = rd:reg ',' imm:imm ;
-fmt3 = rd:reg ',' imm:imm '(' rs1:reg ')' ;
-fmt4 = rs2:reg ',' imm:imm '(' rs1:reg ')' ;
-fmt5 = rs1:reg ',' rs2:reg ',' imm:imm ;
-fmt6 = rs1:reg ',' imm:imm ;
-fmt7 = imm:imm ;
+fmt1 = rd:reg ',' rs1:reg ',' imm:imm2 ;
+fmt2 = rd:reg ',' imm:imm2 ;
+fmt3 = rd:reg ',' imm:imm2 '(' rs1:reg ')' ;
+fmt4 = rs2:reg ',' imm:imm2 '(' rs1:reg ')' ;
+fmt5 = rs1:reg ',' rs2:reg ',' imm:imm2 ;
+fmt6 = rs1:reg ',' imm:imm2 ;
+fmt7 = imm:imm2 ;
 fmt8 = rd:reg ',' rs:reg ;
-fmt9 = imm:imm '(' rs1:reg ')' ;
+fmt9 = imm:imm2 '(' rs1:reg ')' ;
 
 reg = /r(1[0-5]|[0-9])|a[0-3]|t[01]|s[0-2]|[gfs]p|r[va]/ ;
 
 imm = n:num | s:str ;
+imm2 = h:hex | d:dec | s:str ;
 num = hex | dec ;
 hex = /0x[0-9a-fA-F]{1,8}/;
 dec = /-?[0-9]+/ ;
