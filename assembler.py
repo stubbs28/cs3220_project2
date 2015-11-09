@@ -314,6 +314,7 @@ def main(filename):
         OUTPUT += writeComment(s)
         OUTPUT += writeMem(s)
     OUTPUT += '[{0:08x}..{1:08x}] : DEAD;\n'.format(PC, DEPTH-1)
+    OUTPUT += 'END;'
    
     with open(filename[0:filename.find('.')] + '.mif', 'w') as f:
         f.writelines(OUTPUT)
